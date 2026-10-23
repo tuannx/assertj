@@ -49,6 +49,7 @@ module org.assertj.core {
   // FIXME refactor tests and remove
   exports org.assertj.core.internal to org.assertj.tests.core;
 
+  requires io.github.javadiffutils;
   requires static java.logging; // required when printThreadDump is true
   requires static java.management;
   requires static java.sql;

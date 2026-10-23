@@ -16,7 +16,6 @@
 package org.assertj.core.internal;
 
 import static java.nio.file.Files.newBufferedReader;
-import static java.util.Collections.unmodifiableList;
 import static org.assertj.core.util.Closeables.closeQuietly;
 
 import java.io.BufferedReader;
@@ -30,9 +29,14 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.assertj.core.util.diff.ChangeDelta;
+import org.assertj.core.util.diff.Chunk;
+import org.assertj.core.util.diff.DeleteDelta;
 import org.assertj.core.util.diff.Delta;
-import org.assertj.core.util.diff.DiffUtils;
-import org.assertj.core.util.diff.Patch;
+import org.assertj.core.util.diff.InsertDelta;
+
+import com.github.difflib.DiffUtils;
+import com.github.difflib.patch.AbstractDelta;
 
 /**
  * Compares the contents of two files, inputStreams or paths.
@@ -139,6 +143,17 @@ public class Diff {
     return new BufferedReader(new InputStreamReader(stream, Charset.defaultCharset()));
   }
 
+  private static Delta<String> toDelta(AbstractDelta<String> delta) {
+    Chunk<String> original = new Chunk<>(delta.getSource().getPosition(), delta.getSource().getLines());
+    Chunk<String> revised = new Chunk<>(delta.getTarget().getPosition(), delta.getTarget().getLines());
+    return switch (delta.getType()) {
+    case INSERT -> new InsertDelta<>(original, revised);
+    case DELETE -> new DeleteDelta<>(original, revised);
+    case CHANGE -> new ChangeDelta<>(original, revised);
+    case EQUAL -> throw new IllegalStateException("equal deltas are not requested");
+    };
+  }
+
   private BufferedReader readerFor(String string) {
     return new BufferedReader(new StringReader(string));
   }
@@ -148,8 +163,7 @@ public class Diff {
       List<String> actualLines = linesFromBufferedReader(actual);
       List<String> expectedLines = linesFromBufferedReader(expected);
 
-      Patch<String> patch = DiffUtils.diff(expectedLines, actualLines);
-      return unmodifiableList(patch.getDeltas());
+      return DiffUtils.diff(expectedLines, actualLines).getDeltas().stream().map(Diff::toDelta).toList();
     } finally {
       closeQuietly(actual, expected);
     }
